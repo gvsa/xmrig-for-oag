@@ -169,6 +169,10 @@ size_t xmrig::Job::nonceOffset() const
         return 147;
     }
 
+    if (algorithm() == Algorithm::RX_OAG) {
+        return 92;
+    }
+
     return 39;
 }
 

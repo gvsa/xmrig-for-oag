@@ -352,8 +352,10 @@ void xmrig::CpuWorker<N>::start()
             }
 
             if (valid) {
+                const bool oag = job.algorithm() == Algorithm::RX_OAG;
+
                 for (size_t i = 0; i < N; ++i) {
-                    const uint64_t value = *reinterpret_cast<uint64_t*>(m_hash + (i * 32) + 24);
+                    const uint64_t value = oag ? Job::oagHashValue(m_hash + (i * 32)) : *reinterpret_cast<uint64_t*>(m_hash + (i * 32) + 24);
 
 #                   ifdef XMRIG_FEATURE_BENCHMARK
                     if (m_benchSize) {
@@ -364,7 +366,7 @@ void xmrig::CpuWorker<N>::start()
                     else
 #                   endif
 
-                    if (value < job.target()) {
+                    if (oag ? (value <= job.target()) : (value < job.target())) {
                         uint8_t* extra_data = nullptr;
 
                         if (job.algorithm().family() == Algorithm::RANDOM_X) {

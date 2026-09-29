@@ -329,7 +329,7 @@ bool xmrig::CudaBackend::isEnabled() const
 
 bool xmrig::CudaBackend::isEnabled(const Algorithm &algorithm) const
 {
-    return !d_ptr->controller->config()->cuda().threads().get(algorithm).isEmpty();
+    return algorithm != Algorithm::RX_OAG && !d_ptr->controller->config()->cuda().threads().get(algorithm).isEmpty();
 }
 
 

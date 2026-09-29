@@ -73,6 +73,11 @@ rapidjson::Value xmrig::CudaConfig::toJSON(rapidjson::Document &doc) const
 
 std::vector<xmrig::CudaLaunchData> xmrig::CudaConfig::get(const Miner *miner, const Algorithm &algorithm, const std::vector<CudaDevice> &devices) const
 {
+    // rx/oag is CPU only: the GPU kernels check the last 8 bytes of the hash, not the first 8 big-endian.
+    if (algorithm == Algorithm::RX_OAG) {
+        return {};
+    }
+
     auto deviceIndex = [&devices](uint32_t index) -> int {
         for (uint32_t i = 0; i < devices.size(); ++i) {
             if (devices[i].index() == index) {

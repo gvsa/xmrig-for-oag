@@ -309,7 +309,7 @@ bool xmrig::OclBackend::isEnabled() const
 
 bool xmrig::OclBackend::isEnabled(const Algorithm &algorithm) const
 {
-    return !d_ptr->controller->config()->cl().threads().get(algorithm).isEmpty();
+    return algorithm != Algorithm::RX_OAG && !d_ptr->controller->config()->cl().threads().get(algorithm).isEmpty();
 }
 
 

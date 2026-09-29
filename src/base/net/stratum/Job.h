@@ -107,6 +107,17 @@ public:
 
     static inline uint64_t toDiff(uint64_t target)      { return target ? (0xFFFFFFFFFFFFFFFFULL / target) : 0; }
 
+    // rx/oag compares the first 8 bytes of the hash, read big-endian, with the target (hash <= target).
+    static inline uint64_t oagHashValue(const uint8_t *hash)
+    {
+        uint64_t value = 0;
+        for (size_t i = 0; i < sizeof(uint64_t); ++i) {
+            value = (value << 8) | hash[i];
+        }
+
+        return value;
+    }
+
     inline bool operator!=(const Job &other) const      { return !isEqual(other); }
     inline bool operator==(const Job &other) const      { return isEqual(other); }
     inline Job &operator=(const Job &other)             { if (this != &other) { copy(other); } return *this; }

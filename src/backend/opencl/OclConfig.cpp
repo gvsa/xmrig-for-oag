@@ -128,6 +128,11 @@ rapidjson::Value xmrig::OclConfig::toJSON(rapidjson::Document &doc) const
 
 std::vector<xmrig::OclLaunchData> xmrig::OclConfig::get(const Miner *miner, const Algorithm &algorithm, const OclPlatform &platform, const std::vector<OclDevice> &devices) const
 {
+    // rx/oag is CPU only: the GPU kernels check the last 8 bytes of the hash, not the first 8 big-endian.
+    if (algorithm == Algorithm::RX_OAG) {
+        return {};
+    }
+
     std::vector<OclLaunchData> out;
     const auto &threads = m_threads.get(algorithm);
 
