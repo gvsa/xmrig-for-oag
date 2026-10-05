@@ -15,12 +15,14 @@ if [ -z "$VERSION" ] || [ -z "$ARCH" ]; then
     exit 2
 fi
 
-apk add --no-cache git make cmake gcc g++ libstdc++ linux-headers automake autoconf libtool wget perl python3 tar
+apk add --no-cache zlib1g-dev git make cmake gcc g++ linux-headers-generic libstdc++-16-dev automake autoconf libtool wget perl python3 tar libjitterentropy3-dev libzstd-dev
 
 (cd scripts && ./build_deps.sh)
 
 cmake -S . -B build-static -DCMAKE_BUILD_TYPE=Release -DXMRIG_DEPS=scripts/deps -DBUILD_STATIC=ON \
-    -DWITH_OPENCL=OFF -DWITH_CUDA=OFF -DWITH_OAG_TESTS=ON
+    -DWITH_OPENCL=OFF -DWITH_CUDA=OFF -DWITH_OAG_TESTS=ON \
+	-DCMAKE_C_FLAGS="-march=$ARCH mtune=generic" \
+	-DCMAKE_CXX_FLAGS="-march=$ARCH mtune=generic"
 cmake --build build-static -j"$(nproc)"
 
 ./build-static/xmrig-oag-test
