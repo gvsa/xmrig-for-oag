@@ -1,0 +1,25 @@
+name: Publish draft release
+
+# Publishes a draft made by "Release (rx/oag)" as is (no rebuild) and marks it latest.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag of the draft release, e.g. v6.26.0-oag.2"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json tagName,isDraft,url,assets --jq '{tagName, isDraft, url, assets: [.assets[].name]}'
