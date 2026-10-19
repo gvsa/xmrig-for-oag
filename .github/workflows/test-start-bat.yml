@@ -1,0 +1,24 @@
+name: Test start.bat
+
+# Dry runs of scripts/oag/start.bat on Windows (no mining).
+
+on:
+  push:
+    paths:
+      - "scripts/oag/start.bat"
+      - "tests/oag/start_bat_test.ps1"
+      - ".github/workflows/test-start-bat.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Dry runs
+        shell: pwsh
+        run: ./tests/oag/start_bat_test.ps1

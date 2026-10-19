@@ -15,6 +15,10 @@ on:
         description: "Mark as a pre-release"
         type: boolean
         default: false
+      draft:
+        description: "Create as a draft (publish it by hand after checking it)"
+        type: boolean
+        default: false
   push:
     tags:
       - "v*-oag*"
@@ -96,13 +100,31 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           ./build/xmrig.exe --version
 
-      - name: Pack
+      - name: Stage
         shell: pwsh
         run: |
           $name = "xmrig-oag-$env:VERSION-windows-x64"
           New-Item -ItemType Directory -Force -Path "dist/$name" | Out-Null
-          Copy-Item build/xmrig.exe, LICENSE, doc/OAG.md -Destination "dist/$name"
-          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
+          Copy-Item build/xmrig.exe, LICENSE, doc/OAG.md, scripts/oag/start.bat -Destination "dist/$name"
+
+      # Dry runs of start.bat as it ships, next to xmrig.exe (nothing is mined).
+      - name: Test start.bat
+        shell: pwsh
+        run: ./tests/oag/start_bat_test.ps1 -Bat "dist/xmrig-oag-$env:VERSION-windows-x64/start.bat"
+
+      # start.bat and xmrig.exe sit at the top of the ZIP; Orange's README relies on that.
+      - name: Pack
+        shell: pwsh
+        run: |
+          $name = "xmrig-oag-$env:VERSION-windows-x64"
+          Compress-Archive -Path "dist/$name/*" -DestinationPath "dist/$name.zip"
+          Remove-Item -Recurse -Force "dist/$name"
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $entries = [System.IO.Compression.ZipFile]::OpenRead("$PWD/dist/$name.zip").Entries.FullName
+          $entries
+          foreach ($want in "start.bat", "xmrig.exe") {
+            if ($entries -notcontains $want) { Write-Host "missing at the top of the ZIP: $want"; exit 1 }
+          }
 
       - uses: actions/upload-artifact@v4
         with:
@@ -134,19 +156,34 @@ jobs:
           target_commitish: ${{ github.sha }}
           name: XMRig for OAG ${{ env.VERSION }}
           prerelease: ${{ inputs.prerelease || false }}
+          draft: ${{ inputs.draft || false }}
           files: dist/*
           body: |
             XMRig 6.26.0 に、Orange (OAG) を掘るためのアルゴリズム `rx/oag` を足したものです。
 
+            **Windows:** ZIP を展開して `start.bat` を動かし、`oag1…` のアドレスを貼り付けるだけです。
+            アドレスは [ブラウザのウォレット](https://wallet.oagcoin.org/) で作れます。
+            `start.bat` は公開アドレスしか聞きません (控えの語や秘密鍵は聞きません)。
+
+            **それ以外:** プールを選んで 1 行で動かします。
+
             ```sh
-            xmrig -o 127.0.0.1:1919 -u <自分の OAG アドレス> -a rx/oag
+            ./xmrig -a rx/oag -o mine.orange.gen.nz:1920 -u <自分の OAG アドレス>
             ```
 
             | ファイル | 環境 |
             | --- | --- |
             | `xmrig-oag-${{ env.VERSION }}-linux-static-x64.tar.gz` | Linux x86-64 (完全静的、musl) |
             | `xmrig-oag-${{ env.VERSION }}-linux-static-arm64.tar.gz` | Linux aarch64 (完全静的、musl) |
-            | `xmrig-oag-${{ env.VERSION }}-windows-x64.zip` | Windows x86-64 |
+            | `xmrig-oag-${{ env.VERSION }}-windows-x64.zip` | Windows x86-64 (`start.bat` 入り) |
+
+            `start.bat` で選べるプール (どちらも Orange とは別の人が運営しています):
+
+            | | プール | 接続先 | 手数料 / 方式 |
+            | --- | --- | --- | --- |
+            | 1 | [Orange Pool](https://orange.gen.nz/) | `mine.orange.gen.nz:1920` | 1% / PPLNS |
+            | 2 | [VSLabs Orange Coin Mining Pool](https://oagnode.vslabs.co.in/pool/) | `oagnode.vslabs.co.in:1919` | 0% / PPLNS |
+            | 3 | 自動 (既定): 両方を登録し、片方が落ちたらもう片方へ。順番は毎回ランダム | | |
 
             - どのバイナリも、作った環境の上で Orange の `docs/STRATUM.md` §6 の検算用の値 (本番のブロック 1 と 16965) を通してから載せています。
             - CPU 専用です (GPU は `rx/oag` を掘れません)。
