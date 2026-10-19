@@ -30,10 +30,7 @@ echo.
 if not exist "!XMRIG!" (
     echo xmrig.exe was not found next to start.bat.
     echo Extract the whole ZIP first ^(right-click it, Extract All^), then run start.bat from that folder.
-    if not defined DRYRUN (
-        pause
-        exit /b 1
-    )
+    if not defined DRYRUN goto no_xmrig
 )
 
 rem ---- address --------------------------------------------------------------
@@ -42,10 +39,7 @@ set "ADDR="
 if defined OAG_ADDRESS (
     set "ADDR=!OAG_ADDRESS!"
     call :check_address
-    if defined REASON (
-        echo OAG_ADDRESS is not an OAG address: !REASON!.
-        exit /b 2
-    )
+    if defined REASON goto bad_env_address
     goto have_address
 )
 
@@ -64,11 +58,7 @@ echo Only your public address is needed. Never type your recovery phrase here.
 set /a "TRIES=0"
 :ask
 set /a "TRIES+=1"
-if !TRIES! gtr 5 (
-    echo No valid address was entered. Giving up.
-    if not defined DRYRUN pause
-    exit /b 2
-)
+if !TRIES! gtr 5 goto give_up
 echo.
 echo Paste your OAG address (oag1...). Create one at https://wallet.oagcoin.org/
 set "ADDR="
@@ -126,8 +116,7 @@ if "!POOL!"=="1" (
         set "POOLS=!P2! !P1!"
     )
 ) else (
-    echo Unknown pool choice "!POOL!". Use 1, 2 or 3.
-    exit /b 2
+    goto bad_pool
 )
 
 rem ---- start ----------------------------------------------------------------
@@ -143,10 +132,7 @@ if errorlevel 1 (
 echo.
 echo "!XMRIG!" !ARGS!
 
-if defined DRYRUN (
-    echo Dry run: xmrig was not started.
-    exit /b 0
-)
+if defined DRYRUN goto dry_run_done
 
 echo.
 "!XMRIG!" !ARGS!
@@ -157,6 +143,31 @@ if not "!RC!"=="0" (
     pause
 )
 exit /b !RC!
+
+rem ---- endings ---------------------------------------------------------------
+rem Every early exit happens here, outside any parentheses, so that cmd /c
+rem passes the exit code on.
+
+:dry_run_done
+echo Dry run: xmrig was not started.
+exit /b 0
+
+:no_xmrig
+pause
+exit /b 1
+
+:bad_env_address
+echo OAG_ADDRESS is not an OAG address: !REASON!.
+exit /b 2
+
+:give_up
+echo No valid address was entered. Giving up.
+if not defined DRYRUN pause
+exit /b 2
+
+:bad_pool
+echo Unknown pool choice "!POOL!". Use 1, 2 or 3.
+exit /b 2
 
 rem ---- check_address: sets REASON when ADDR is not an OAG address -------------
 

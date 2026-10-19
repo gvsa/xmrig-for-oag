@@ -19,14 +19,14 @@ $Addr = "oag1qxd46y2zmzw97u3chqtz47ltej02ks8q4vppu2v00zmzx7hm2mhts8a5mfs"
 $Orange = "-o mine.orange.gen.nz:1920 -u $Addr -a rx/oag"
 $VSLabs = "-o oagnode.vslabs.co.in:1919 -u $Addr -a rx/oag"
 
-function Check([bool]$ok, [string]$what, [string]$out = "") {
+function Check([bool]$ok, [string]$what, $r = $null) {
     $script:checks++
     if ($ok) {
         Write-Host "  ok    $what"
     } else {
         $script:failures++
         Write-Host "  FAIL  $what"
-        if ($out) { Write-Host ($out -replace "(?m)^", "        | ") }
+        if ($r) { Write-Host "        exit code $($r.Code)"; Write-Host ($r.Out -replace "(?m)^", "        | ") }
     }
 }
 
@@ -36,7 +36,9 @@ function Run([string]$bat, [hashtable]$envs, [string]$stdin = "") {
         if ($envs.ContainsKey($name)) { Set-Item "Env:$name" $envs[$name] } else { Remove-Item "Env:$name" -ErrorAction SilentlyContinue }
     }
     $out = $stdin | & cmd.exe /d /c $bat --dry-run 2>&1 | Out-String
-    return @{ Code = $LASTEXITCODE; Out = $out }
+    $code = $LASTEXITCODE
+    $cmd = ($out -split "`r?`n" | Where-Object { $_ -match '^".*xmrig\.exe" ' } | Select-Object -First 1)
+    return @{ Code = $code; Out = $out; Cmd = [string]$cmd }
 }
 
 Write-Host "file"
@@ -48,27 +50,27 @@ Check (-not ($text -match "(?i)official")) "start.bat does not say 'official'"
 
 Write-Host "pool 1"
 $r = Run $Bat @{ OAG_ADDRESS = $Addr; OAG_POOL = "1" }
-Check ($r.Code -eq 0) "exit code 0" $r.Out
-Check ($r.Out.Contains($Orange)) "uses Orange Pool" $r.Out
-Check (-not $r.Out.Contains("oagnode.vslabs.co.in")) "does not use VSLabs" $r.Out
-Check ($r.Out.Contains("--cpu-priority 0 --pause-on-battery")) "idle priority and pause on battery" $r.Out
-Check ($r.Out.Contains("Dry run: xmrig was not started.")) "does not start xmrig" $r.Out
+Check ($r.Code -eq 0) "exit code 0" $r
+Check ($r.Cmd.Contains($Orange)) "uses Orange Pool" $r
+Check (-not $r.Cmd.Contains("oagnode.vslabs.co.in")) "does not use VSLabs" $r
+Check ($r.Cmd.EndsWith("-a rx/oag --cpu-priority 0 --pause-on-battery")) "idle priority and pause on battery" $r
+Check ($r.Out.Contains("Dry run: xmrig was not started.")) "does not start xmrig" $r
 
 Write-Host "pool 2"
 $r = Run $Bat @{ OAG_ADDRESS = $Addr; OAG_POOL = "2" }
-Check ($r.Code -eq 0) "exit code 0" $r.Out
-Check ($r.Out.Contains($VSLabs)) "uses VSLabs" $r.Out
-Check (-not $r.Out.Contains("mine.orange.gen.nz")) "does not use Orange Pool" $r.Out
+Check ($r.Code -eq 0) "exit code 0" $r
+Check ($r.Cmd.Contains($VSLabs)) "uses VSLabs" $r
+Check (-not $r.Cmd.Contains("mine.orange.gen.nz")) "does not use Orange Pool" $r
 
 Write-Host "pool 3 (auto, random order)"
 $orders = @{}
 for ($i = 0; $i -lt 20; $i++) {
     $r = Run $Bat @{ OAG_ADDRESS = $Addr; OAG_POOL = "3" }
-    if ($r.Code -ne 0 -or -not $r.Out.Contains($Orange) -or -not $r.Out.Contains($VSLabs)) {
-        Check $false "run $i lists both pools with exit code 0" $r.Out
+    if ($r.Code -ne 0 -or -not $r.Cmd.Contains($Orange) -or -not $r.Cmd.Contains($VSLabs)) {
+        Check $false "run $i lists both pools with exit code 0" $r
         break
     }
-    $first = if ($r.Out.IndexOf($Orange) -lt $r.Out.IndexOf($VSLabs)) { "orange-first" } else { "vslabs-first" }
+    $first = if ($r.Cmd.IndexOf($Orange) -lt $r.Cmd.IndexOf($VSLabs)) { "orange-first" } else { "vslabs-first" }
     $orders[$first] = 1 + [int]$orders[$first]
 }
 Check ($orders.Count -eq 2) "both orders appear over 20 runs ($(($orders.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ', '))"
@@ -86,14 +88,14 @@ $bad = [ordered]@{
 }
 foreach ($case in $bad.GetEnumerator()) {
     $r = Run $Bat @{ OAG_ADDRESS = $case.Value; OAG_POOL = "1" }
-    Check ($r.Code -eq 2 -and $r.Out.Contains("is not an OAG address") -and -not $r.Out.Contains("INJECTED")) "refuses: $($case.Key)" $r.Out
+    Check ($r.Code -eq 2 -and $r.Out.Contains("is not an OAG address") -and -not $r.Out.Contains("INJECTED")) "refuses: $($case.Key)" $r
 }
 
 Write-Host "other inputs"
 $r = Run $Bat @{ OAG_ADDRESS = "  $Addr  "; OAG_POOL = "1" }
-Check ($r.Code -eq 0 -and $r.Out.Contains($Orange)) "trims spaces around the address" $r.Out
+Check ($r.Code -eq 0 -and $r.Cmd.Contains($Orange)) "trims spaces around the address" $r
 $r = Run $Bat @{ OAG_ADDRESS = $Addr; OAG_POOL = "4" }
-Check ($r.Code -eq 2 -and $r.Out.Contains("Unknown pool choice")) "refuses pool choice 4" $r.Out
+Check ($r.Code -eq 2 -and $r.Out.Contains("Unknown pool choice")) "refuses pool choice 4" $r
 
 # The prompt and the saved address, in a scratch copy so no oag-address.txt is left behind.
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("start-bat-test-" + [guid]::NewGuid())
@@ -103,21 +105,21 @@ try {
     Copy-Item $Bat $copy
 
     $r = Run $copy @{ OAG_POOL = "2" } $Addr
-    Check ($r.Code -eq 0 -and $r.Out.Contains($VSLabs)) "takes a pasted address" $r.Out
-    Check ($r.Out.Contains("https://wallet.oagcoin.org/")) "points to the browser wallet" $r.Out
+    Check ($r.Code -eq 0 -and $r.Cmd.Contains($VSLabs)) "takes a pasted address" $r
+    Check ($r.Out.Contains("https://wallet.oagcoin.org/")) "points to the browser wallet" $r
     Check (-not (Test-Path (Join-Path $tmp "oag-address.txt"))) "dry run saves nothing"
 
     $r = Run $copy @{ OAG_POOL = "2" } "oag2nope"
-    Check ($r.Code -eq 2 -and $r.Out.Contains("That is not an OAG address") -and $r.Out.Contains("Giving up")) "refuses a bad pasted address and gives up without input" $r.Out
+    Check ($r.Code -eq 2 -and $r.Out.Contains("That is not an OAG address") -and $r.Out.Contains("Giving up")) "refuses a bad pasted address and gives up without input" $r
 
     Set-Content -Path (Join-Path $tmp "oag-address.txt") -Value $Addr -Encoding ascii
     $r = Run $copy @{ OAG_POOL = "1" }
-    Check ($r.Code -eq 0 -and $r.Out.Contains($Orange) -and $r.Out.Contains("Using the address saved in oag-address.txt")) "uses the saved address" $r.Out
-    Check ($r.Out.Contains("delete oag-address.txt")) "says how to change the address" $r.Out
+    Check ($r.Code -eq 0 -and $r.Cmd.Contains($Orange) -and $r.Out.Contains("Using the address saved in oag-address.txt")) "uses the saved address" $r
+    Check ($r.Out.Contains("delete oag-address.txt")) "says how to change the address" $r
 
     Set-Content -Path (Join-Path $tmp "oag-address.txt") -Value "not-an-address" -Encoding ascii
     $r = Run $copy @{ OAG_POOL = "1" }
-    Check ($r.Code -eq 2 -and $r.Out.Contains("oag-address.txt does not hold an OAG address")) "asks again when the saved address is bad" $r.Out
+    Check ($r.Code -eq 2 -and $r.Out.Contains("oag-address.txt does not hold an OAG address")) "asks again when the saved address is bad" $r
 } finally {
     Remove-Item -Recurse -Force $tmp
 }
