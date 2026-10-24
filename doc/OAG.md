@@ -9,6 +9,42 @@ XMRig 6.26.0 に、Orange (OAG) を掘るためのアルゴリズム **`rx/oag`*
 
 ## 使い方
 
+### Windows: start.bat
+
+1. アドレスを作る。[ブラウザのウォレット](https://wallet.oagcoin.org/) でウォレットを作り、
+   控えの語を紙に書いておく。
+2. ZIP を全部展開する (右クリックして「すべて展開」)。ZIP を開いたまま動かすと
+   `xmrig.exe` が見つからない。
+3. `start.bat` を動かし、`oag1…` のアドレスを貼り付ける。プールを選ぶ (15 秒で 3 になる)。
+
+`start.bat` が聞くのは公開アドレスだけです。控えの語や秘密鍵は聞きません。
+アドレスは隣の `oag-address.txt` に保存し、2 回目からは聞きません。変えたいときはその
+ファイルを消してください。xmrig は優先度を一番低くして (`--cpu-priority 0`)、電池で
+動いている間は止まる (`--pause-on-battery`) 設定で起動します。管理者として実行すると
+ラージページが使え、1〜2 割速くなります (start.bat 自身は管理者に上がりません)。
+
+| 選択 | プール | 接続先 | 手数料 / 方式 |
+| --- | --- | --- | --- |
+| 1 | [Orange Pool](https://orange.gen.nz/) | `mine.orange.gen.nz:1920` | 1% / PPLNS |
+| 2 | [VSLabs Orange Coin Mining Pool](https://oagnode.vslabs.co.in/pool/) | `oagnode.vslabs.co.in:1919` | 0% / PPLNS |
+| 3 | 自動 (既定): 両方を登録し、片方が落ちたらもう片方へ切り替える。順番は毎回ランダム | | |
+
+どちらも Orange とは別の人が運営するプールです。一覧の原本は Orange の README の
+「Community pools」で、`start.bat` の先頭にもそう書いてあります。
+
+`start.bat --dry-run` は、起動する xmrig のコマンドを表示するだけで終わります。
+環境変数 `OAG_ADDRESS` (アドレス) と `OAG_POOL` (1〜3) を渡すと、聞かずに進みます。
+
+### プールに直接つなぐ (Linux など)
+
+```sh
+./xmrig -a rx/oag -o mine.orange.gen.nz:1920 -u <自分の OAG アドレス>
+```
+
+`-o` を 2 つ並べると、1 番目が落ちたときに 2 番目へ切り替わり、戻れば 1 番目に戻ります。
+
+### 自分のノードで掘る (ソロ)
+
 OAG のノードを `--stratum` 付きで動かし、そこにつなぎます。
 
 ```sh
